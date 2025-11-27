@@ -194,6 +194,38 @@ export function ScopeAdjustment({
 		setOffsetY(Number(dispY.toFixed(1)));
 	};
 
+	// Calculate zoom scale to fit bullet position when outside target
+	const calculateZoomScale = () => {
+		let offsetXInches = offsetX;
+		let offsetYInches = offsetY;
+		if (isMetric) {
+			offsetXInches = offsetX * conv.mmToIn;
+			offsetYInches = offsetY * conv.mmToIn;
+		}
+
+		let targetSizeInches = targetSize;
+		if (isMetric) {
+			targetSizeInches = targetSize * conv.cmToIn;
+		}
+
+		const targetRadius = targetSizeInches / 2;
+		const maxOffset = Math.max(
+			Math.abs(offsetXInches),
+			Math.abs(offsetYInches)
+		);
+
+		// If bullet is within target, no zoom needed
+		if (maxOffset <= targetRadius) {
+			return 1;
+		}
+
+		// Calculate scale factor to fit bullet with some margin (20% padding)
+		const requiredRadius = maxOffset * 1.2;
+		return targetRadius / requiredRadius;
+	};
+
+	const zoomScale = calculateZoomScale();
+
 	const updateShotFromInputs = () => {
 		let offsetXInches = offsetX;
 		let offsetYInches = offsetY;
@@ -210,7 +242,9 @@ export function ScopeAdjustment({
 			targetSizeInches = targetSize * conv.cmToIn;
 		}
 
-		const pixelsPerInch = visual.offsetWidth / targetSizeInches;
+		// When zoomed out, we scale based on a larger effective target size
+		const effectiveTargetSize = targetSizeInches / zoomScale;
+		const pixelsPerInch = visual.offsetWidth / effectiveTargetSize;
 		const centerX = visual.offsetWidth / 2;
 		const centerY = visual.offsetHeight / 2;
 
@@ -344,19 +378,27 @@ export function ScopeAdjustment({
 						ref={targetVisualRef}
 						onClick={handleTargetClick}
 					>
-						<div className="target-crosshair h"></div>
-						<div className="target-crosshair v"></div>
-						<div className="target-rings" ref={ringsRef}></div>
 						<div
-							className="target-grid"
-							ref={gridRef}
-							style={{ display: "none" }}
-						></div>
-						<div
-							className="target-shape"
-							ref={shapeRef}
-							style={{ display: "none" }}
-						></div>
+							className="target-content"
+							style={{
+								transform: `scale(${zoomScale})`,
+								transition: "transform 0.3s ease-out",
+							}}
+						>
+							<div className="target-crosshair h"></div>
+							<div className="target-crosshair v"></div>
+							<div className="target-rings" ref={ringsRef}></div>
+							<div
+								className="target-grid"
+								ref={gridRef}
+								style={{ display: "none" }}
+							></div>
+							<div
+								className="target-shape"
+								ref={shapeRef}
+								style={{ display: "none" }}
+							></div>
+						</div>
 						{shotMarkerVisible && (
 							<div
 								className="shot-marker"
@@ -365,6 +407,11 @@ export function ScopeAdjustment({
 									top: shotMarkerPos.y + "px",
 								}}
 							></div>
+						)}
+						{zoomScale < 1 && (
+							<div className="zoom-indicator">
+								{Math.round(zoomScale * 100)}%
+							</div>
 						)}
 					</div>
 				</div>

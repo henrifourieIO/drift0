@@ -193,6 +193,23 @@ export function DriftVisualizer({
 		}
 	};
 
+	// Calculate zoom scale to fit bullet position when outside target
+	const calculateZoomScale = () => {
+		const targetRadius = targetSizeInches / 2;
+		const maxOffset = Math.max(Math.abs(dropInches), Math.abs(driftInches));
+		
+		// If bullet is within target, no zoom needed
+		if (maxOffset <= targetRadius) {
+			return 1;
+		}
+
+		// Calculate scale factor to fit bullet with some margin (20% padding)
+		const requiredRadius = maxOffset * 1.2;
+		return targetRadius / requiredRadius;
+	};
+
+	const zoomScale = calculateZoomScale();
+
 	// Calculate shot marker position
 	const getMarkerPosition = () => {
 		const visualSize = 180;
@@ -200,9 +217,10 @@ export function DriftVisualizer({
 		const centerY = visualSize / 2;
 
 		// The target (rings/shape) fills 90% of the visual container
-		// So we need to scale the marker position to match
+		// When zoomed out, we scale based on a larger effective target size
 		const targetVisualDiameter = visualSize * 0.9; // 162px
-		const pixelsPerInch = targetVisualDiameter / targetSizeInches;
+		const effectiveTargetSize = targetSizeInches / zoomScale;
+		const pixelsPerInch = targetVisualDiameter / effectiveTargetSize;
 
 		// Wind drift is horizontal (X), drop is vertical (Y)
 		// Positive drift = bullet drifts right = marker goes right
@@ -210,11 +228,9 @@ export function DriftVisualizer({
 		const markerX = centerX + driftInches * pixelsPerInch;
 		const markerY = centerY + dropInches * pixelsPerInch; // Positive drop = lower on target
 
-		// Clamp to visual bounds with some padding
-		const padding = 6;
 		return {
-			x: Math.max(padding, Math.min(visualSize - padding, markerX)),
-			y: Math.max(padding, Math.min(visualSize - padding, markerY)),
+			x: markerX,
+			y: markerY,
 		};
 	};
 
@@ -269,19 +285,27 @@ export function DriftVisualizer({
 
 			<div className="drift-target-wrapper">
 				<div className="drift-target-visual" ref={targetVisualRef}>
-					<div className="target-crosshair h"></div>
-					<div className="target-crosshair v"></div>
-					<div className="target-rings" ref={ringsRef}></div>
-					<div
-						className="target-grid"
-						ref={gridRef}
-						style={{ display: "none" }}
-					></div>
-					<div
-						className="target-shape"
-						ref={shapeRef}
-						style={{ display: "none" }}
-					></div>
+					<div 
+						className="target-content"
+						style={{
+							transform: `scale(${zoomScale})`,
+							transition: 'transform 0.3s ease-out',
+						}}
+					>
+						<div className="target-crosshair h"></div>
+						<div className="target-crosshair v"></div>
+						<div className="target-rings" ref={ringsRef}></div>
+						<div
+							className="target-grid"
+							ref={gridRef}
+							style={{ display: "none" }}
+						></div>
+						<div
+							className="target-shape"
+							ref={shapeRef}
+							style={{ display: "none" }}
+						></div>
+					</div>
 					<div
 						className={`drift-marker ${
 							actuallyOnTarget ? "on-target" : "off-target"
@@ -291,6 +315,11 @@ export function DriftVisualizer({
 							top: markerPos.y + "px",
 						}}
 					></div>
+					{zoomScale < 1 && (
+						<div className="zoom-indicator">
+							{Math.round(zoomScale * 100)}%
+						</div>
+					)}
 				</div>
 				<div className="drift-target-label">
 					{targetSizeDisplay}

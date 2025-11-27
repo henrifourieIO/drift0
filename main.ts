@@ -86,9 +86,13 @@ function calculateBallistics(input: BallisticsInput): BallisticsResult[] {
   // Zero angle in radians
   const zeroAngle = Math.atan((tempDrop + sightHeightM) / zeroRange);
 
-  // Wind component (full value) - windSpeed is already in m/s
+  // Wind components - windSpeed is already in m/s
   const windAngleRad = (windAngle * Math.PI) / 180;
-  const crossWind = windSpeed * Math.sin(windAngleRad);
+  const crossWind = windSpeed * Math.sin(windAngleRad); // Lateral drift
+  // Headwind component: positive = headwind (slows bullet), negative = tailwind (assists bullet)
+  // At 0°: cos(0) = 1 → full headwind (wind from target toward shooter)
+  // At 180°: cos(180) = -1 → full tailwind (wind from shooter toward target)
+  const headWindComponent = windSpeed * Math.cos(windAngleRad);
 
   // Second pass: calculate trajectory
   for (let d = 0; d <= targetDistance; d += increment) {
@@ -113,19 +117,23 @@ function calculateBallistics(input: BallisticsInput): BallisticsResult[] {
     let simVel = muzzleVelocity;
     let simTime = 0;
     let simDrop = 0;
-    let simDrift = 0;
 
     for (let meter = 0; meter < d; meter++) {
       const dt = 1 / simVel;
-      const dragDecel = (simVel * simVel) / (correctedBC * bcDragConstant);
+      // Calculate drag using relative velocity (bullet velocity relative to air mass)
+      // Headwind increases relative velocity → more drag
+      // Tailwind decreases relative velocity → less drag
+      const relativeVel = simVel + headWindComponent;
+      const dragDecel = (relativeVel * relativeVel) / (correctedBC * bcDragConstant);
       simVel -= dragDecel * dt;
       simTime += dt;
       simDrop += 0.5 * gravity * dt * dt + gravity * simTime * dt;
-
-      // Wind drift calculation (simplified lag time method)
-      const lag = simTime - (meter / muzzleVelocity);
-      simDrift = crossWind * lag; // meters
     }
+
+    // Wind drift calculation (lag time method)
+    // Lag = actual flight time - ideal flight time (if bullet maintained muzzle velocity)
+    const lag = simTime - (d / muzzleVelocity);
+    const simDrift = crossWind * lag; // meters
 
     // Apply zero angle correction
     const trajectoryRise = Math.tan(zeroAngle) * d; // meters
@@ -177,7 +185,7 @@ const handler = async (req: Request): Promise<Response> => {
       const input: BallisticsInput = await req.json();
       const results = calculateBallistics(input);
       return new Response(JSON.stringify(results), {
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
           ...securityHeaders,
@@ -186,7 +194,7 @@ const handler = async (req: Request): Promise<Response> => {
     } catch (error) {
       return new Response(JSON.stringify({ error: String(error) }), {
         status: 400,
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           ...securityHeaders,
         },
@@ -194,20 +202,20 @@ const handler = async (req: Request): Promise<Response> => {
     }
   }
 
-  // Serve CSS with caching
+  // Serve CSS
   if (path === "/styles.css") {
     const response = await serveFile(req, "./components/styles.css");
     const headers = new Headers(response.headers);
-    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    headers.set("Cache-Control", "no-store");
     Object.entries(securityHeaders).forEach(([k, v]) => headers.set(k, v));
     return new Response(response.body, { status: response.status, headers });
   }
 
-  // Serve built JS bundle with caching
+  // Serve built JS bundle
   if (path === "/app.js") {
     const response = await serveFile(req, "./static/app.js");
     const headers = new Headers(response.headers);
-    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    headers.set("Cache-Control", "no-store");
     Object.entries(securityHeaders).forEach(([k, v]) => headers.set(k, v));
     return new Response(response.body, { status: response.status, headers });
   }

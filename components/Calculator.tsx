@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { BallisticsResult } from "../main.ts";
-import { DriftVisualizer } from "./DriftVisualizer.tsx";
 import type { ScopeAdjustmentData } from "./App.tsx";
 
 interface CalculatorProps {
@@ -21,6 +20,8 @@ interface BallisticsInput {
 	temperature: number;
 	altitude: number;
 }
+
+const STORAGE_KEY = "drift-calculator-values";
 
 const conv = {
 	fpsToMs: 0.3048,
@@ -117,28 +118,106 @@ const presets = {
 	},
 };
 
+const targetPresets = {
+	ipsc: {
+		size: 18,
+		name: "IPSC",
+		shape: "rect" as const,
+		width: 18,
+		height: 30,
+		gridLines: 6,
+	},
+	"nra-b8": {
+		size: 5.5,
+		name: "NRA B-8",
+		shape: "circle" as const,
+		gridLines: 5,
+	},
+	"moa-grid": {
+		size: 10,
+		name: "1 MOA Grid",
+		shape: "square" as const,
+		gridLines: 10,
+	},
+	"steel-12": {
+		size: 12,
+		name: '12" Steel',
+		shape: "circle" as const,
+		gridLines: 6,
+	},
+	"steel-8": {
+		size: 8,
+		name: '8" Steel',
+		shape: "circle" as const,
+		gridLines: 4,
+	},
+	custom: {
+		size: 18,
+		name: "Custom",
+		shape: "square" as const,
+		gridLines: 6,
+	},
+};
+
+// Load saved values from localStorage
+function loadSavedValues() {
+	try {
+		const saved = localStorage.getItem(STORAGE_KEY);
+		if (saved) {
+			return JSON.parse(saved);
+		}
+	} catch {
+		// Ignore parsing errors
+	}
+	return null;
+}
+
 export function Calculator({
 	unitSystem,
 	onUnitSystemChange,
 	onScopeAdjustment,
 }: CalculatorProps) {
-	const [muzzleVelocity, setMuzzleVelocity] = useState(2700);
-	const [bulletWeight, setBulletWeight] = useState(168);
-	const [ballisticCoefficient, setBallisticCoefficient] = useState(0.462);
-	const [zeroRange, setZeroRange] = useState(100);
-	const [sightHeight, setSightHeight] = useState(1.5);
-	const [targetDistance, setTargetDistance] = useState(1000);
-	const [windSpeed, setWindSpeed] = useState(10);
-	const [windAngle, setWindAngle] = useState(90);
-	const [temperature, setTemperature] = useState(59);
-	const [altitude, setAltitude] = useState(0);
+	const saved = loadSavedValues();
+	const [muzzleVelocity, setMuzzleVelocity] = useState(
+		saved?.muzzleVelocity ?? 2700
+	);
+	const [bulletWeight, setBulletWeight] = useState(saved?.bulletWeight ?? 168);
+	const [ballisticCoefficient, setBallisticCoefficient] = useState(
+		saved?.ballisticCoefficient ?? 0.462
+	);
+	const [zeroRange, setZeroRange] = useState(saved?.zeroRange ?? 100);
+	const [sightHeight, setSightHeight] = useState(saved?.sightHeight ?? 1.5);
+	const [targetDistance, setTargetDistance] = useState(
+		saved?.targetDistance ?? 1000
+	);
+	const [shootingDistance, setShootingDistance] = useState(
+		saved?.shootingDistance ?? 500
+	);
+	const [windSpeed, setWindSpeed] = useState(saved?.windSpeed ?? 10);
+	const [windAngle, setWindAngle] = useState(saved?.windAngle ?? 90);
+	const [temperature, setTemperature] = useState(saved?.temperature ?? 59);
+	const [altitude, setAltitude] = useState(saved?.altitude ?? 0);
 	const [results, setResults] = useState<BallisticsResult[] | null>(null);
-	const [currentUnit, setCurrentUnit] = useState<"moa" | "mil">("moa");
+	const [currentUnit, setCurrentUnit] = useState<"moa" | "mil">(
+		saved?.currentUnit ?? "moa"
+	);
 	const [isCalculating, setIsCalculating] = useState(false);
-	const [activeVisualizerRow, setActiveVisualizerRow] = useState<number | null>(
+	const [targetType, setTargetType] = useState<keyof typeof targetPresets>(
+		saved?.targetType ?? "ipsc"
+	);
+	const [displayMode, setDisplayMode] = useState<"rings" | "grid">(
+		saved?.displayMode ?? "rings"
+	);
+	const [selectedPreset, setSelectedPreset] = useState<string>(
+		saved?.selectedPreset ?? ""
+	);
+	const ringsRef = useRef<HTMLDivElement>(null);
+	const gridRef = useRef<HTMLDivElement>(null);
+	const shapeRef = useRef<HTMLDivElement>(null);
+	const prevUnitSystemRef = useRef<"imperial" | "metric">(unitSystem);
+	const calculateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null
 	);
-	const prevUnitSystemRef = useRef<"imperial" | "metric">(unitSystem);
 
 	const loadPreset = (name: keyof typeof presets) => {
 		const preset = presets[name];
@@ -152,6 +231,7 @@ export function Calculator({
 			setMuzzleVelocity(vel);
 			setBulletWeight(weight);
 			setBallisticCoefficient(preset.ballisticCoefficient);
+			setSelectedPreset(name);
 		}
 	};
 
@@ -163,7 +243,7 @@ export function Calculator({
 			let weight = bulletWeight;
 			let zero = zeroRange;
 			let sight = sightHeight;
-			let dist = targetDistance;
+			let dist = Math.max(targetDistance, shootingDistance);
 			let wind = windSpeed;
 			let temp = temperature;
 			let alt = altitude;
@@ -213,7 +293,6 @@ export function Calculator({
 	useEffect(() => {
 		if (prevUnitSystemRef.current === unitSystem) return;
 
-		const fromSystem = prevUnitSystemRef.current;
 		const toSystem = unitSystem;
 
 		if (toSystem === "metric") {
@@ -222,6 +301,7 @@ export function Calculator({
 			setZeroRange((z) => Math.round(z * conv.ydsToM));
 			setSightHeight((s) => Number((s * conv.inToMm).toFixed(0)));
 			setTargetDistance((d) => Math.round(d * conv.ydsToM));
+			setShootingDistance((d) => Math.round(d * conv.ydsToM));
 			setWindSpeed((w) => Number((w * conv.mphToMs).toFixed(1)));
 			setTemperature((t) => Math.round(fToC(t)));
 			setAltitude((a) => Math.round(a * conv.ftToM));
@@ -231,6 +311,7 @@ export function Calculator({
 			setZeroRange((z) => Math.round(z * conv.mToYds));
 			setSightHeight((s) => Number((s * conv.mmToIn).toFixed(1)));
 			setTargetDistance((d) => Math.round(d * conv.mToYds));
+			setShootingDistance((d) => Math.round(d * conv.mToYds));
 			setWindSpeed((w) => Number((w * conv.msToMph).toFixed(0)));
 			setTemperature((t) => Math.round(cToF(t)));
 			setAltitude((a) => Math.round(a * conv.mToFt));
@@ -239,29 +320,154 @@ export function Calculator({
 		prevUnitSystemRef.current = unitSystem;
 	}, [unitSystem]);
 
-	// Initial calculation on mount
+	// Save values to localStorage whenever they change
 	useEffect(() => {
-		calculate();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+		const values = {
+			muzzleVelocity,
+			bulletWeight,
+			ballisticCoefficient,
+			zeroRange,
+			sightHeight,
+			targetDistance,
+			shootingDistance,
+			windSpeed,
+			windAngle,
+			temperature,
+			altitude,
+			currentUnit,
+			targetType,
+			displayMode,
+			selectedPreset,
+		};
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+	}, [
+		muzzleVelocity,
+		bulletWeight,
+		ballisticCoefficient,
+		zeroRange,
+		sightHeight,
+		targetDistance,
+		shootingDistance,
+		windSpeed,
+		windAngle,
+		temperature,
+		altitude,
+		currentUnit,
+		targetType,
+		displayMode,
+		selectedPreset,
+	]);
 
-	// Close visualizer when clicking outside
+	// Auto-calculate with debounce when input values change
 	useEffect(() => {
-		const handleClickOutside = (e: MouseEvent) => {
-			const target = e.target as HTMLElement;
-			if (
-				!target.closest(".drift-visualizer") &&
-				!target.closest(".clickable-row")
-			) {
-				setActiveVisualizerRow(null);
+		// Clear any pending calculation
+		if (calculateTimeoutRef.current) {
+			clearTimeout(calculateTimeoutRef.current);
+		}
+
+		// Schedule new calculation with 300ms debounce
+		calculateTimeoutRef.current = setTimeout(() => {
+			calculate();
+		}, 300);
+
+		return () => {
+			if (calculateTimeoutRef.current) {
+				clearTimeout(calculateTimeoutRef.current);
 			}
 		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [
+		muzzleVelocity,
+		bulletWeight,
+		ballisticCoefficient,
+		zeroRange,
+		sightHeight,
+		targetDistance,
+		shootingDistance,
+		windSpeed,
+		windAngle,
+		temperature,
+		altitude,
+		unitSystem,
+	]);
 
-		if (activeVisualizerRow !== null) {
-			document.addEventListener("click", handleClickOutside);
-			return () => document.removeEventListener("click", handleClickOutside);
+	// Update target visual when type or display mode changes, or when results first become available
+	useEffect(() => {
+		updateTargetVisual();
+	}, [targetType, displayMode, results]);
+
+	const updateTargetVisual = () => {
+		const ringsContainer = ringsRef.current;
+		const gridContainer = gridRef.current;
+		const shapeEl = shapeRef.current;
+
+		if (!ringsContainer || !gridContainer || !shapeEl) return;
+
+		const preset = targetPresets[targetType];
+
+		ringsContainer.innerHTML = "";
+		gridContainer.innerHTML = "";
+		shapeEl.style.display = "none";
+
+		if (displayMode === "rings") {
+			ringsContainer.style.display = "flex";
+			gridContainer.style.display = "none";
+
+			const ringCount = preset.gridLines || 4;
+			for (let i = 1; i <= ringCount; i++) {
+				const ring = document.createElement("div");
+				ring.className = "target-ring";
+				const pct = (i / ringCount) * 90;
+				ring.style.width = pct + "%";
+				ring.style.height = pct + "%";
+				ringsContainer.appendChild(ring);
+			}
+		} else {
+			ringsContainer.style.display = "none";
+			gridContainer.style.display = "block";
+
+			const gridLines = preset.gridLines || 6;
+			const visualSize = 220;
+			const spacing = visualSize / gridLines;
+
+			for (let i = 0; i <= gridLines; i++) {
+				const line = document.createElement("div");
+				line.className =
+					"target-grid-line h" + (i === gridLines / 2 ? " major" : "");
+				line.style.top = i * spacing + "px";
+				gridContainer.appendChild(line);
+			}
+
+			for (let i = 0; i <= gridLines; i++) {
+				const line = document.createElement("div");
+				line.className =
+					"target-grid-line v" + (i === gridLines / 2 ? " major" : "");
+				line.style.left = i * spacing + "px";
+				gridContainer.appendChild(line);
+			}
+
+			shapeEl.style.display = "block";
+			shapeEl.className = "target-shape";
+
+			if (preset.shape === "circle") {
+				shapeEl.classList.add("circle");
+				shapeEl.style.width = "80%";
+				shapeEl.style.height = "80%";
+			} else if (preset.shape === "rect" && preset.width && preset.height) {
+				const aspect = preset.height / preset.width;
+				if (aspect > 1) {
+					shapeEl.style.height = "90%";
+					shapeEl.style.width = 90 / aspect + "%";
+				} else {
+					shapeEl.style.width = "90%";
+					shapeEl.style.height = 90 * aspect + "%";
+				}
+			} else {
+				shapeEl.style.width = "80%";
+				shapeEl.style.height = "80%";
+			}
 		}
-	}, [activeVisualizerRow]);
+	};
 
 	const isMetric = unitSystem === "metric";
 	const distLabel = isMetric ? "m" : "yds";
@@ -278,58 +484,142 @@ export function Calculator({
 	const displayDrop = (d: number) =>
 		isMetric ? d : Number((d * conv.mmToIn).toFixed(1));
 
+	// Find result closest to shooting distance
+	const getShootingResult = (): BallisticsResult | null => {
+		if (!results || results.length === 0) return null;
+
+		// Convert shooting distance to meters for comparison
+		const shootingDistMeters = isMetric
+			? shootingDistance
+			: shootingDistance * conv.ydsToM;
+
+		// Find closest result
+		let closest = results[0];
+		let minDiff = Math.abs(results[0].distance - shootingDistMeters);
+
+		for (const r of results) {
+			const diff = Math.abs(r.distance - shootingDistMeters);
+			if (diff < minDiff) {
+				minDiff = diff;
+				closest = r;
+			}
+		}
+
+		return closest;
+	};
+
+	const shootingResult = getShootingResult();
+
+	// Target visualization calculations
+	const preset = targetPresets[targetType];
+	const targetSizeInches = preset.size;
+	const targetSizeDisplay = isMetric
+		? (targetSizeInches * conv.inToCm).toFixed(1)
+		: targetSizeInches;
+
+	// Calculate zoom scale to fit bullet position when outside target
+	const calculateZoomScale = () => {
+		if (!shootingResult) return 1;
+
+		const dropInches = shootingResult.drop * conv.mmToIn;
+		const driftInches = shootingResult.windDrift * conv.mmToIn;
+		const targetRadius = targetSizeInches / 2;
+		const maxOffset = Math.max(Math.abs(dropInches), Math.abs(driftInches));
+
+		// If bullet is within target, no zoom needed
+		if (maxOffset <= targetRadius) {
+			return 1;
+		}
+
+		// Calculate scale factor to fit bullet with some margin (20% padding)
+		const requiredRadius = maxOffset * 1.2;
+		return targetRadius / requiredRadius;
+	};
+
+	const zoomScale = calculateZoomScale();
+
+	const getMarkerPosition = () => {
+		if (!shootingResult) return { x: 110, y: 110 };
+
+		const visualSize = 220;
+		const centerX = visualSize / 2;
+		const centerY = visualSize / 2;
+
+		const dropInches = shootingResult.drop * conv.mmToIn;
+		const driftInches = shootingResult.windDrift * conv.mmToIn;
+
+		// When zoomed out, we scale based on a larger effective target size
+		const targetVisualDiameter = visualSize * 0.9;
+		const effectiveTargetSize = targetSizeInches / zoomScale;
+		const pixelsPerInch = targetVisualDiameter / effectiveTargetSize;
+
+		const markerX = centerX + driftInches * pixelsPerInch;
+		const markerY = centerY + dropInches * pixelsPerInch;
+
+		return {
+			x: markerX,
+			y: markerY,
+		};
+	};
+
+	const markerPos = getMarkerPosition();
+
+	const isOnTarget = () => {
+		if (!shootingResult) return false;
+
+		const dropInches = shootingResult.drop * conv.mmToIn;
+		const driftInches = shootingResult.windDrift * conv.mmToIn;
+
+		if (preset.shape === "rect" && preset.width && preset.height) {
+			return (
+				Math.abs(driftInches) <= preset.width / 2 &&
+				Math.abs(dropInches) <= preset.height / 2
+			);
+		}
+
+		const impactRadius = Math.sqrt(
+			dropInches * dropInches + driftInches * driftInches
+		);
+		const targetRadius = targetSizeInches / 2;
+		return impactRadius <= targetRadius;
+	};
+
+	const actuallyOnTarget = isOnTarget();
+
 	return (
 		<div className="grid">
 			<div className="sidebar">
 				<div className="card">
 					<h3 className="card-title">Cartridge</h3>
 
-					<div className="presets">
-						<button className="preset-btn" onClick={() => loadPreset("556")}>
-							5.56 NATO
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("762x39")}>
-							7.62x39
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("308")}>
-							308 Win
-						</button>
-						<button
-							className="preset-btn"
-							onClick={() => loadPreset("762x54r")}
+					<div className="form-group full">
+						<label>Preset</label>
+						<select
+							value={selectedPreset}
+							onChange={(e) => {
+								if (e.target.value) {
+									loadPreset(e.target.value as keyof typeof presets);
+								}
+							}}
 						>
-							7.62x54R
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("6.5cm")}>
-							6.5 Creedmoor
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("6.5prc")}>
-							6.5 PRC
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("243")}>
-							243 Win
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("270")}>
-							270 Win
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("3006")}>
-							30-06
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("300wm")}>
-							300 Win Mag
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("300prc")}>
-							300 PRC
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("338lm")}>
-							338 Lapua
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("375ct")}>
-							375 CheyTac
-						</button>
-						<button className="preset-btn" onClick={() => loadPreset("50bmg")}>
-							50 BMG
-						</button>
+							<option value="" disabled>
+								Select a cartridge...
+							</option>
+							<option value="556">5.56 NATO</option>
+							<option value="762x39">7.62x39</option>
+							<option value="308">308 Win</option>
+							<option value="762x54r">7.62x54R</option>
+							<option value="6.5cm">6.5 Creedmoor</option>
+							<option value="6.5prc">6.5 PRC</option>
+							<option value="243">243 Win</option>
+							<option value="270">270 Win</option>
+							<option value="3006">30-06</option>
+							<option value="300wm">300 Win Mag</option>
+							<option value="300prc">300 PRC</option>
+							<option value="338lm">338 Lapua</option>
+							<option value="375ct">375 CheyTac</option>
+							<option value="50bmg">50 BMG</option>
+						</select>
 					</div>
 
 					<div className="form-grid">
@@ -400,18 +690,6 @@ export function Calculator({
 								step="0.1"
 							/>
 						</div>
-						<div className="form-group full">
-							<label>
-								Target Distance{" "}
-								<span className="label-hint">({isMetric ? "m" : "yds"})</span>
-							</label>
-							<input
-								type="number"
-								value={targetDistance}
-								onChange={(e) => setTargetDistance(Number(e.target.value))}
-								step="50"
-							/>
-						</div>
 					</div>
 
 					<div className="divider"></div>
@@ -428,6 +706,7 @@ export function Calculator({
 								value={windSpeed}
 								onChange={(e) => setWindSpeed(Number(e.target.value))}
 								step="1"
+								min="0"
 							/>
 						</div>
 						<div className="form-group">
@@ -439,8 +718,133 @@ export function Calculator({
 								value={windAngle}
 								onChange={(e) => setWindAngle(Number(e.target.value))}
 								step="15"
+								min="0"
+								max="360"
 							/>
 						</div>
+					</div>
+					<div className="wind-direction-indicator">
+						<div className="wind-compass">
+							<div className="compass-ring">
+								<span className="compass-label top">0°</span>
+								<span className="compass-label right">90°</span>
+								<span className="compass-label bottom">180°</span>
+								<span className="compass-label left">270°</span>
+							</div>
+							<div
+								className="wind-arrow"
+								style={{
+									transform: `rotate(${windAngle + 180}deg)`,
+								}}
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="currentColor"
+									width="20"
+									height="20"
+								>
+									<path
+										d="M12 2L8 10h8L12 2zM12 22V10"
+										stroke="currentColor"
+										strokeWidth="2"
+										fill="none"
+									/>
+								</svg>
+							</div>
+							<div className="shooter-icon">
+								<svg
+									viewBox="0 0 24 24"
+									fill="currentColor"
+									width="16"
+									height="16"
+								>
+									<circle cx="12" cy="8" r="4" />
+									<path
+										d="M12 12v8M8 16h8"
+										stroke="currentColor"
+										strokeWidth="2"
+										fill="none"
+									/>
+								</svg>
+							</div>
+						</div>
+						<div className="wind-effect-labels">
+							{(() => {
+								const angleRad = (windAngle * Math.PI) / 180;
+								const headwindComponent = Math.cos(angleRad);
+								const crosswindComponent = Math.abs(Math.sin(angleRad));
+
+								const effects = [];
+
+								// Headwind/Tailwind effect (affects velocity/drop)
+								if (Math.abs(headwindComponent) > 0.1) {
+									if (headwindComponent > 0) {
+										effects.push(
+											<span key="head" className="wind-effect hindering">
+												<svg viewBox="0 0 16 16" width="12" height="12">
+													<path
+														d="M8 3v10M4 7l4-4 4 4"
+														stroke="currentColor"
+														strokeWidth="2"
+														fill="none"
+													/>
+												</svg>
+												Headwind (
+												{Math.round(Math.abs(headwindComponent) * 100)}%) —
+												slows bullet, more drop
+											</span>
+										);
+									} else {
+										effects.push(
+											<span key="tail" className="wind-effect assisting">
+												<svg viewBox="0 0 16 16" width="12" height="12">
+													<path
+														d="M8 13V3M4 9l4 4 4-4"
+														stroke="currentColor"
+														strokeWidth="2"
+														fill="none"
+													/>
+												</svg>
+												Tailwind (
+												{Math.round(Math.abs(headwindComponent) * 100)}%) —
+												assists bullet, less drop
+											</span>
+										);
+									}
+								}
+
+								// Crosswind effect (affects drift)
+								if (crosswindComponent > 0.1) {
+									const direction = Math.sin(angleRad) > 0 ? "right" : "left";
+									effects.push(
+										<span key="cross" className="wind-effect crosswind">
+											<svg viewBox="0 0 16 16" width="12" height="12">
+												<path
+													d="M3 8h10M9 4l4 4-4 4"
+													stroke="currentColor"
+													strokeWidth="2"
+													fill="none"
+												/>
+											</svg>
+											Crosswind ({Math.round(crosswindComponent * 100)}%) —
+											drifts {direction}
+										</span>
+									);
+								}
+
+								if (effects.length === 0) {
+									effects.push(
+										<span key="none" className="wind-effect neutral">
+											No significant wind effect
+										</span>
+									);
+								}
+
+								return effects;
+							})()}
+						</div>
+					</div>
+					<div className="form-grid">
 						<div className="form-group">
 							<label>
 								Temperature{" "}
@@ -466,19 +870,26 @@ export function Calculator({
 							/>
 						</div>
 					</div>
-
-					<div className="divider"></div>
-
-					<button onClick={calculate} disabled={isCalculating}>
-						{isCalculating ? "Calculating..." : "Calculate Trajectory"}
-					</button>
 				</div>
 			</div>
 
 			<div className="main">
-				<div className="card">
-					<div className="results-header">
-						<h2>Trajectory Table</h2>
+				<div className="card shot-calculator">
+					<div className="shot-header">
+						<div className="shot-distance-input">
+							<label>Shooting Distance</label>
+							<div className="distance-input-wrapper">
+								<input
+									type="number"
+									value={shootingDistance}
+									onChange={(e) => setShootingDistance(Number(e.target.value))}
+									step={isMetric ? 25 : 25}
+									min={0}
+									max={999999999}
+								/>
+								<span className="distance-unit">{distLabel}</span>
+							</div>
+						</div>
 						<div className="unit-toggle">
 							<button
 								className={currentUnit === "moa" ? "active" : ""}
@@ -495,146 +906,222 @@ export function Calculator({
 						</div>
 					</div>
 
-					<div id="results">
-						{!results || results.length === 0 ? (
-							<div className="empty-state">
-								<svg
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="1.5"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-								>
-									<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-									<circle cx="12" cy="12" r="3" />
-								</svg>
-								<p>
-									Enter your parameters and click Calculate to view the
-									trajectory
-								</p>
-							</div>
-						) : (
-							<>
-								<div className="summary-grid">
-									<div className="summary-card">
-										<div className="label">Max Range</div>
-										<div className="value">
-											{displayDist(results[results.length - 1].distance)}{" "}
-											{distLabel}
-										</div>
+					{!results || results.length === 0 || !shootingResult ? (
+						<div className="empty-state">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="1.5"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+								<circle cx="12" cy="12" r="3" />
+							</svg>
+							<p>
+								{isCalculating
+									? "Calculating trajectory..."
+									: "Enter your parameters to view the trajectory"}
+							</p>
+						</div>
+					) : (
+						<div className="shot-result-layout">
+							<div className="target-section">
+								<div className="target-controls">
+									<div className="target-select">
+										<label>Target</label>
+										<select
+											value={targetType}
+											onChange={(e) =>
+												setTargetType(
+													e.target.value as keyof typeof targetPresets
+												)
+											}
+										>
+											<option value="ipsc">IPSC (18"×30")</option>
+											<option value="nra-b8">NRA B-8 (5.5")</option>
+											<option value="moa-grid">1 MOA Grid (10")</option>
+											<option value="steel-12">12" Steel</option>
+											<option value="steel-8">8" Steel</option>
+											<option value="custom">Custom (18")</option>
+										</select>
 									</div>
-									<div className="summary-card">
-										<div className="label">Final Velocity</div>
-										<div className="value">
-											{displayVel(results[results.length - 1].velocity)}{" "}
-											{velLabel}
-										</div>
-									</div>
-									<div className="summary-card">
-										<div className="label">Final Energy</div>
-										<div className="value">
-											{displayEnergy(results[results.length - 1].energy)}{" "}
-											{energyLabel}
-										</div>
-									</div>
-									<div className="summary-card">
-										<div className="label">Time of Flight</div>
-										<div className="value">
-											{results[results.length - 1].timeOfFlight}s
-										</div>
+									<div className="display-mode-toggle">
+										<button
+											className={displayMode === "rings" ? "active" : ""}
+											onClick={() => setDisplayMode("rings")}
+										>
+											Rings
+										</button>
+										<button
+											className={displayMode === "grid" ? "active" : ""}
+											onClick={() => setDisplayMode("grid")}
+										>
+											Grid
+										</button>
 									</div>
 								</div>
-								<div className="table-wrapper">
-									<table>
-										<thead>
-											<tr>
-												<th>Distance</th>
-												<th>Velocity</th>
-												<th>Energy</th>
-												<th>
-													Drop<span className="table-hint">(click row)</span>
-												</th>
-												<th>Wind</th>
-												<th>TOF</th>
-												<th>{currentUnit.toUpperCase()}</th>
-											</tr>
-										</thead>
-										<tbody>
-											{results.map((r, index) => {
-												const drop = displayDrop(r.drop);
-												const drift = displayDrop(r.windDrift);
-												const isZero =
-													Math.abs(r.drop) < 0.5 &&
-													r.distance > 0 &&
-													r.distance <= 150;
-												const dropClass =
-													r.drop > 0.5
-														? "negative"
-														: r.drop < -0.5
-														? "negative"
-														: "positive";
-												const windClass = r.windDrift > 0 ? "negative" : "";
-												const correction =
-													currentUnit === "moa" ? r.moa : r.mil;
-												const isActive = activeVisualizerRow === index;
 
-												return (
-													<tr
-														key={r.distance}
-														className={`clickable-row ${
-															isZero ? "highlight-row" : ""
-														} ${isActive ? "row-active" : ""}`}
-														onClick={() =>
-															setActiveVisualizerRow(isActive ? null : index)
-														}
-													>
-														<td>
-															{displayDist(r.distance)} {distLabel}
-														</td>
-														<td>
-															{displayVel(r.velocity)} {velLabel}
-														</td>
-														<td>
-															{displayEnergy(r.energy)} {energyLabel}
-														</td>
-														<td
-															className={dropClass}
-															style={{ position: "relative" }}
-														>
-															{drop > 0 ? "+" : ""}
-															{drop}
-															{dropLabel}
-															{isActive && (
-																<DriftVisualizer
-																	drop={r.drop}
-																	windDrift={r.windDrift}
-																	distance={r.distance}
-																	unitSystem={unitSystem}
-																	onClose={() => setActiveVisualizerRow(null)}
-																	onScopeAdjustment={onScopeAdjustment}
-																/>
-															)}
-														</td>
-														<td className={windClass}>
-															{drift > 0 ? "+" : ""}
-															{drift}
-															{dropLabel}
-														</td>
-														<td>{r.timeOfFlight}s</td>
-														<td>
-															{correction > 0 ? "+" : ""}
-															{correction}
-														</td>
-													</tr>
-												);
-											})}
-										</tbody>
-									</table>
+								<div className="inline-target-visual">
+									<div
+										className="target-content"
+										style={{
+											transform: `scale(${zoomScale})`,
+											transition: "transform 0.3s ease-out",
+										}}
+									>
+										<div className="target-crosshair h"></div>
+										<div className="target-crosshair v"></div>
+										<div className="target-rings" ref={ringsRef}></div>
+										<div
+											className="target-grid"
+											ref={gridRef}
+											style={{ display: "none" }}
+										></div>
+										<div
+											className="target-shape"
+											ref={shapeRef}
+											style={{ display: "none" }}
+										></div>
+									</div>
+									<div
+										className={`drift-marker ${
+											actuallyOnTarget ? "on-target" : "off-target"
+										}`}
+										style={{
+											left: markerPos.x + "px",
+											top: markerPos.y + "px",
+										}}
+									></div>
+									{zoomScale < 1 && (
+										<div className="zoom-indicator">
+											{Math.round(zoomScale * 100)}%
+										</div>
+									)}
 								</div>
-							</>
-						)}
-					</div>
+								<div className="target-size-label">
+									{targetSizeDisplay}
+									{isMetric ? "cm" : '"'} target
+								</div>
+
+								<div
+									className={`shot-verdict ${
+										actuallyOnTarget ? "hit" : "miss"
+									}`}
+								>
+									{actuallyOnTarget ? (
+										<>
+											<span className="verdict-icon">✓</span>
+											<span>On Target</span>
+										</>
+									) : (
+										<>
+											<span className="verdict-icon">✗</span>
+											<span>Off Target</span>
+										</>
+									)}
+								</div>
+							</div>
+
+							<div className="ballistics-section">
+								<div className="shot-stats-grid">
+									<div className="shot-stat primary">
+										<div className="stat-label">Drop</div>
+										<div
+											className={`stat-value ${
+												Math.abs(shootingResult.drop) > 12.7
+													? "negative"
+													: "positive"
+											}`}
+										>
+											{shootingResult.drop > 0 ? "+" : ""}
+											{displayDrop(shootingResult.drop)}
+											{dropLabel}
+										</div>
+									</div>
+									<div className="shot-stat primary">
+										<div className="stat-label">Wind Drift</div>
+										<div
+											className={`stat-value ${
+												Math.abs(shootingResult.windDrift) > 12.7
+													? "negative"
+													: "positive"
+											}`}
+										>
+											{shootingResult.windDrift > 0 ? "+" : ""}
+											{displayDrop(shootingResult.windDrift)}
+											{dropLabel}
+										</div>
+									</div>
+									<div className="shot-stat">
+										<div className="stat-label">Correction</div>
+										<div className="stat-value accent">
+											{(currentUnit === "moa"
+												? shootingResult.moa
+												: shootingResult.mil) > 0
+												? "+"
+												: ""}
+											{currentUnit === "moa"
+												? shootingResult.moa
+												: shootingResult.mil}{" "}
+											{currentUnit.toUpperCase()}
+										</div>
+									</div>
+									<div className="shot-stat">
+										<div className="stat-label">Time of Flight</div>
+										<div className="stat-value">
+											{shootingResult.timeOfFlight}s
+										</div>
+									</div>
+									<div className="shot-stat">
+										<div className="stat-label">Velocity</div>
+										<div className="stat-value">
+											{displayVel(shootingResult.velocity)} {velLabel}
+										</div>
+									</div>
+									<div className="shot-stat">
+										<div className="stat-label">Energy</div>
+										<div className="stat-value">
+											{displayEnergy(shootingResult.energy)} {energyLabel}
+										</div>
+									</div>
+								</div>
+
+								{onScopeAdjustment && (
+									<button
+										className="scope-adjust-btn"
+										onClick={() => {
+											onScopeAdjustment({
+												offsetX: shootingResult.windDrift,
+												offsetY: -shootingResult.drop,
+												distance: shootingResult.distance,
+											});
+										}}
+									>
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="2"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											width="16"
+											height="16"
+										>
+											<circle cx="12" cy="12" r="10" />
+											<circle cx="12" cy="12" r="3" />
+											<line x1="12" y1="2" x2="12" y2="6" />
+											<line x1="12" y1="18" x2="12" y2="22" />
+											<line x1="2" y1="12" x2="6" y2="12" />
+											<line x1="18" y1="12" x2="22" y2="12" />
+										</svg>
+										Get Scope Adjustment
+									</button>
+								)}
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

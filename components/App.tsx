@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calculator } from "./Calculator.tsx";
 import { ScopeAdjustment } from "./ScopeAdjustment.tsx";
 import "./styles.css";
@@ -9,14 +9,37 @@ export interface ScopeAdjustmentData {
 	distance: number; // distance in meters
 }
 
+const APP_STORAGE_KEY = "drift-app-preferences";
+
+function loadAppPreferences() {
+	try {
+		const saved = localStorage.getItem(APP_STORAGE_KEY);
+		if (saved) {
+			return JSON.parse(saved);
+		}
+	} catch {
+		// Ignore parsing errors
+	}
+	return null;
+}
+
 export function App() {
+	const saved = loadAppPreferences();
 	const [currentView, setCurrentView] = useState<"calculator" | "adjustment">(
-		"calculator"
+		saved?.currentView ?? "calculator"
 	);
 	const [unitSystem, setUnitSystem] = useState<"imperial" | "metric">(
-		"imperial"
+		saved?.unitSystem ?? "imperial"
 	);
 	const [scopeAdjustmentData, setScopeAdjustmentData] = useState<ScopeAdjustmentData | null>(null);
+
+	// Save preferences to localStorage
+	useEffect(() => {
+		localStorage.setItem(APP_STORAGE_KEY, JSON.stringify({
+			currentView,
+			unitSystem,
+		}));
+	}, [currentView, unitSystem]);
 
 	const handleScopeAdjustment = (data: ScopeAdjustmentData) => {
 		setScopeAdjustmentData(data);
