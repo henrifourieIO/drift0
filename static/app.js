@@ -1508,7 +1508,7 @@ function App() {
             ]
           }
         ),
-        /* @__PURE__ */ jsx4("h1", { children: "Drift" })
+        /* @__PURE__ */ jsx4("h1", { children: "Drift0" })
       ] }),
       /* @__PURE__ */ jsxs4("nav", { className: "nav-tabs", children: [
         /* @__PURE__ */ jsx4(

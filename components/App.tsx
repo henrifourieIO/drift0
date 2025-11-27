@@ -56,7 +56,7 @@ export function App() {
 						<circle cx="12" cy="12" r="6" />
 						<circle cx="12" cy="12" r="2" />
 					</svg>
-					<h1>Drift</h1>
+					<h1>Drift0</h1>
 				</div>
 				<nav className="nav-tabs">
 					<button
