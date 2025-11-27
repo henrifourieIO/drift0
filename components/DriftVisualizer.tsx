@@ -222,15 +222,17 @@ export function DriftVisualizer({
 	const markerPos = getMarkerPosition();
 
 	return (
-		<div className="drift-visualizer" onClick={(e) => e.stopPropagation()}>
-			<div className="drift-visualizer-header">
-				<h4>
-					Impact at {distanceDisplay} {isMetric ? "m" : "yds"}
-				</h4>
-				<button className="drift-close-btn" onClick={onClose}>
-					×
-				</button>
-			</div>
+		<>
+			<div className="drift-overlay" onClick={onClose}></div>
+			<div className="drift-visualizer" onClick={(e) => e.stopPropagation()}>
+				<div className="drift-visualizer-header">
+					<h4>
+						Impact at {distanceDisplay} {isMetric ? "m" : "yds"}
+					</h4>
+					<button className="drift-close-btn" onClick={onClose}>
+						×
+					</button>
+				</div>
 
 			<div className="drift-controls">
 				<div className="drift-control-group">
@@ -369,6 +371,7 @@ export function DriftVisualizer({
 					Get Scope Adjustment
 				</button>
 			)}
-		</div>
+			</div>
+		</>
 	);
 }

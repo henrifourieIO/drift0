@@ -173,168 +173,171 @@ function DriftVisualizer({
     };
   };
   const markerPos = getMarkerPosition();
-  return /* @__PURE__ */ jsxs("div", { className: "drift-visualizer", onClick: (e) => e.stopPropagation(), children: [
-    /* @__PURE__ */ jsxs("div", { className: "drift-visualizer-header", children: [
-      /* @__PURE__ */ jsxs("h4", { children: [
-        "Impact at ",
-        distanceDisplay,
-        " ",
-        isMetric ? "m" : "yds"
+  return /* @__PURE__ */ jsxs(Fragment, { children: [
+    /* @__PURE__ */ jsx("div", { className: "drift-overlay", onClick: onClose }),
+    /* @__PURE__ */ jsxs("div", { className: "drift-visualizer", onClick: (e) => e.stopPropagation(), children: [
+      /* @__PURE__ */ jsxs("div", { className: "drift-visualizer-header", children: [
+        /* @__PURE__ */ jsxs("h4", { children: [
+          "Impact at ",
+          distanceDisplay,
+          " ",
+          isMetric ? "m" : "yds"
+        ] }),
+        /* @__PURE__ */ jsx("button", { className: "drift-close-btn", onClick: onClose, children: "\xD7" })
       ] }),
-      /* @__PURE__ */ jsx("button", { className: "drift-close-btn", onClick: onClose, children: "\xD7" })
-    ] }),
-    /* @__PURE__ */ jsxs("div", { className: "drift-controls", children: [
-      /* @__PURE__ */ jsxs("div", { className: "drift-control-group", children: [
-        /* @__PURE__ */ jsx("label", { children: "Target" }),
-        /* @__PURE__ */ jsxs(
-          "select",
-          {
-            value: targetType,
-            onChange: (e) => setTargetType(e.target.value),
-            children: [
-              /* @__PURE__ */ jsx("option", { value: "ipsc", children: 'IPSC (18"\xD730")' }),
-              /* @__PURE__ */ jsx("option", { value: "nra-b8", children: 'NRA B-8 (5.5")' }),
-              /* @__PURE__ */ jsx("option", { value: "steel-12", children: '12" Steel' }),
-              /* @__PURE__ */ jsx("option", { value: "steel-8", children: '8" Steel' }),
-              /* @__PURE__ */ jsx("option", { value: "deer-vitals", children: 'Deer Vitals (10")' }),
-              /* @__PURE__ */ jsx("option", { value: "elk-vitals", children: 'Elk Vitals (14")' })
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsxs("div", { className: "drift-display-toggle", children: [
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: displayMode === "rings" ? "active" : "",
-            onClick: () => setDisplayMode("rings"),
-            children: "Rings"
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "button",
-          {
-            className: displayMode === "grid" ? "active" : "",
-            onClick: () => setDisplayMode("grid"),
-            children: "Grid"
-          }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxs("div", { className: "drift-target-wrapper", children: [
-      /* @__PURE__ */ jsxs("div", { className: "drift-target-visual", ref: targetVisualRef, children: [
-        /* @__PURE__ */ jsx("div", { className: "target-crosshair h" }),
-        /* @__PURE__ */ jsx("div", { className: "target-crosshair v" }),
-        /* @__PURE__ */ jsx("div", { className: "target-rings", ref: ringsRef }),
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: "target-grid",
-            ref: gridRef,
-            style: { display: "none" }
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: "target-shape",
-            ref: shapeRef,
-            style: { display: "none" }
-          }
-        ),
-        /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: `drift-marker ${actuallyOnTarget ? "on-target" : "off-target"}`,
-            style: {
-              left: markerPos.x + "px",
-              top: markerPos.y + "px"
-            }
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsxs("div", { className: "drift-target-label", children: [
-        targetSizeDisplay,
-        isMetric ? "cm" : '"',
-        " target"
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxs("div", { className: "drift-stats", children: [
-      /* @__PURE__ */ jsxs("div", { className: "drift-stat", children: [
-        /* @__PURE__ */ jsx("span", { className: "drift-stat-label", children: "Drop" }),
-        /* @__PURE__ */ jsxs(
-          "span",
-          {
-            className: `drift-stat-value ${Math.abs(drop) > 12.7 ? "negative" : "positive"}`,
-            children: [
-              drop > 0 ? "+" : "",
-              dropDisplay,
-              isMetric ? "mm" : '"'
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ jsxs("div", { className: "drift-stat", children: [
-        /* @__PURE__ */ jsx("span", { className: "drift-stat-label", children: "Wind Drift" }),
-        /* @__PURE__ */ jsxs(
-          "span",
-          {
-            className: `drift-stat-value ${Math.abs(windDrift) > 12.7 ? "negative" : "positive"}`,
-            children: [
-              windDrift > 0 ? "+" : "",
-              driftDisplay,
-              isMetric ? "mm" : '"'
-            ]
-          }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ jsx("div", { className: `drift-verdict ${actuallyOnTarget ? "hit" : "miss"}`, children: actuallyOnTarget ? /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("span", { className: "verdict-icon", children: "\u2713" }),
-      /* @__PURE__ */ jsx("span", { children: "On Target" })
-    ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
-      /* @__PURE__ */ jsx("span", { className: "verdict-icon", children: "\u2717" }),
-      /* @__PURE__ */ jsx("span", { children: "Off Target" })
-    ] }) }),
-    onScopeAdjustment && /* @__PURE__ */ jsxs(
-      "button",
-      {
-        className: "drift-scope-btn",
-        onClick: () => {
-          onScopeAdjustment({
-            offsetX: windDrift,
-            offsetY: -drop,
-            // Negative because drop is down, but scope adjustment uses positive = high
-            distance
-          });
-          onClose();
-        },
-        children: [
+      /* @__PURE__ */ jsxs("div", { className: "drift-controls", children: [
+        /* @__PURE__ */ jsxs("div", { className: "drift-control-group", children: [
+          /* @__PURE__ */ jsx("label", { children: "Target" }),
           /* @__PURE__ */ jsxs(
-            "svg",
+            "select",
             {
-              viewBox: "0 0 24 24",
-              fill: "none",
-              stroke: "currentColor",
-              strokeWidth: "2",
-              strokeLinecap: "round",
-              strokeLinejoin: "round",
-              width: "14",
-              height: "14",
+              value: targetType,
+              onChange: (e) => setTargetType(e.target.value),
               children: [
-                /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "10" }),
-                /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "3" }),
-                /* @__PURE__ */ jsx("line", { x1: "12", y1: "2", x2: "12", y2: "6" }),
-                /* @__PURE__ */ jsx("line", { x1: "12", y1: "18", x2: "12", y2: "22" }),
-                /* @__PURE__ */ jsx("line", { x1: "2", y1: "12", x2: "6", y2: "12" }),
-                /* @__PURE__ */ jsx("line", { x1: "18", y1: "12", x2: "22", y2: "12" })
+                /* @__PURE__ */ jsx("option", { value: "ipsc", children: 'IPSC (18"\xD730")' }),
+                /* @__PURE__ */ jsx("option", { value: "nra-b8", children: 'NRA B-8 (5.5")' }),
+                /* @__PURE__ */ jsx("option", { value: "steel-12", children: '12" Steel' }),
+                /* @__PURE__ */ jsx("option", { value: "steel-8", children: '8" Steel' }),
+                /* @__PURE__ */ jsx("option", { value: "deer-vitals", children: 'Deer Vitals (10")' }),
+                /* @__PURE__ */ jsx("option", { value: "elk-vitals", children: 'Elk Vitals (14")' })
               ]
             }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "drift-display-toggle", children: [
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: displayMode === "rings" ? "active" : "",
+              onClick: () => setDisplayMode("rings"),
+              children: "Rings"
+            }
           ),
-          "Get Scope Adjustment"
-        ]
-      }
-    )
+          /* @__PURE__ */ jsx(
+            "button",
+            {
+              className: displayMode === "grid" ? "active" : "",
+              onClick: () => setDisplayMode("grid"),
+              children: "Grid"
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "drift-target-wrapper", children: [
+        /* @__PURE__ */ jsxs("div", { className: "drift-target-visual", ref: targetVisualRef, children: [
+          /* @__PURE__ */ jsx("div", { className: "target-crosshair h" }),
+          /* @__PURE__ */ jsx("div", { className: "target-crosshair v" }),
+          /* @__PURE__ */ jsx("div", { className: "target-rings", ref: ringsRef }),
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "target-grid",
+              ref: gridRef,
+              style: { display: "none" }
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: "target-shape",
+              ref: shapeRef,
+              style: { display: "none" }
+            }
+          ),
+          /* @__PURE__ */ jsx(
+            "div",
+            {
+              className: `drift-marker ${actuallyOnTarget ? "on-target" : "off-target"}`,
+              style: {
+                left: markerPos.x + "px",
+                top: markerPos.y + "px"
+              }
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "drift-target-label", children: [
+          targetSizeDisplay,
+          isMetric ? "cm" : '"',
+          " target"
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs("div", { className: "drift-stats", children: [
+        /* @__PURE__ */ jsxs("div", { className: "drift-stat", children: [
+          /* @__PURE__ */ jsx("span", { className: "drift-stat-label", children: "Drop" }),
+          /* @__PURE__ */ jsxs(
+            "span",
+            {
+              className: `drift-stat-value ${Math.abs(drop) > 12.7 ? "negative" : "positive"}`,
+              children: [
+                drop > 0 ? "+" : "",
+                dropDisplay,
+                isMetric ? "mm" : '"'
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs("div", { className: "drift-stat", children: [
+          /* @__PURE__ */ jsx("span", { className: "drift-stat-label", children: "Wind Drift" }),
+          /* @__PURE__ */ jsxs(
+            "span",
+            {
+              className: `drift-stat-value ${Math.abs(windDrift) > 12.7 ? "negative" : "positive"}`,
+              children: [
+                windDrift > 0 ? "+" : "",
+                driftDisplay,
+                isMetric ? "mm" : '"'
+              ]
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx("div", { className: `drift-verdict ${actuallyOnTarget ? "hit" : "miss"}`, children: actuallyOnTarget ? /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("span", { className: "verdict-icon", children: "\u2713" }),
+        /* @__PURE__ */ jsx("span", { children: "On Target" })
+      ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
+        /* @__PURE__ */ jsx("span", { className: "verdict-icon", children: "\u2717" }),
+        /* @__PURE__ */ jsx("span", { children: "Off Target" })
+      ] }) }),
+      onScopeAdjustment && /* @__PURE__ */ jsxs(
+        "button",
+        {
+          className: "drift-scope-btn",
+          onClick: () => {
+            onScopeAdjustment({
+              offsetX: windDrift,
+              offsetY: -drop,
+              // Negative because drop is down, but scope adjustment uses positive = high
+              distance
+            });
+            onClose();
+          },
+          children: [
+            /* @__PURE__ */ jsxs(
+              "svg",
+              {
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                strokeWidth: "2",
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+                width: "14",
+                height: "14",
+                children: [
+                  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "10" }),
+                  /* @__PURE__ */ jsx("circle", { cx: "12", cy: "12", r: "3" }),
+                  /* @__PURE__ */ jsx("line", { x1: "12", y1: "2", x2: "12", y2: "6" }),
+                  /* @__PURE__ */ jsx("line", { x1: "12", y1: "18", x2: "12", y2: "22" }),
+                  /* @__PURE__ */ jsx("line", { x1: "2", y1: "12", x2: "6", y2: "12" }),
+                  /* @__PURE__ */ jsx("line", { x1: "18", y1: "12", x2: "22", y2: "12" })
+                ]
+              }
+            ),
+            "Get Scope Adjustment"
+          ]
+        }
+      )
+    ] })
   ] });
 }
 
@@ -1252,7 +1255,7 @@ function ScopeAdjustment({
       }
     ),
     /* @__PURE__ */ jsxs3("div", { className: "target-container", children: [
-      /* @__PURE__ */ jsxs3("div", { children: [
+      /* @__PURE__ */ jsxs3("div", { className: "target-wrapper", children: [
         /* @__PURE__ */ jsxs3("div", { className: "display-toggle", children: [
           /* @__PURE__ */ jsx3(
             "button",

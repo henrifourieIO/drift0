@@ -324,7 +324,7 @@ export function ScopeAdjustment({
 			</p>
 
 			<div className="target-container">
-				<div>
+				<div className="target-wrapper">
 					<div className="display-toggle">
 						<button
 							className={displayMode === "rings" ? "active" : ""}
