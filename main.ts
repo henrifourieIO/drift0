@@ -233,7 +233,7 @@ const handler = async (req: Request): Promise<Response> => {
 };
 
 if (import.meta.main) {
-  const port = Number(Deno.env.get("PORT")) || 8000;
+  const port = Number(Deno.env.get("PORT")) || 8080;
   console.log(`🎯 Drift Ballistics Calculator running at http://localhost:${port}`);
   Deno.serve({ port }, handler);
 }
