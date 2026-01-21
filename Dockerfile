@@ -1,49 +1,41 @@
 # Build stage
-FROM denoland/deno:2.1.4 AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install Node.js for esbuild
-RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
 
 # Copy source files
-COPY deno.json deno.lock ./
-COPY app.tsx build.ts main.ts ./
-COPY components/ ./components/
-COPY static/ ./static/
+COPY . .
 
-# Cache dependencies
-RUN deno cache main.ts
-
-# Build production bundle
-RUN deno task build:prod
+# Build the application
+RUN npm run build
 
 # Production stage
-FROM denoland/deno:2.1.4
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy only necessary files
-COPY --from=builder /app/main.ts ./
-COPY --from=builder /app/deno.json ./
-COPY --from=builder /app/deno.lock ./
-COPY --from=builder /app/static/ ./static/
-COPY --from=builder /app/components/styles.css ./components/
+# Copy package files
+COPY package*.json ./
 
-# Cache dependencies
-RUN deno cache main.ts
+# Install production dependencies only
+RUN npm ci --omit=dev
+
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
 
 # Create non-root user for security
-RUN useradd -m -u 1000 deno
-USER deno
+RUN addgroup -g 1000 node && adduser -u 1000 -G node -s /bin/sh -D node || true
+USER node
 
 # Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD deno eval "const r = await fetch('http://localhost:8000/health'); if (!r.ok) Deno.exit(1);"
+EXPOSE 8080
 
 # Run the server
-CMD ["run", "--allow-net", "--allow-read", "--allow-env", "main.ts"]
+CMD ["node", "./dist/server/entry.mjs"]
 

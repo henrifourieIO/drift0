@@ -1,0 +1,29 @@
+{
+  "name": "drift0",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev --port 8080",
+    "start": "astro dev --port 8080",
+    "build": "astro check && astro build",
+    "preview": "astro preview --port 8080",
+    "astro": "astro",
+    "cf:dev": "wrangler pages dev ./dist --compatibility-date=2024-01-01 --compatibility-flag=nodejs_compat",
+    "cf:deploy": "wrangler pages deploy ./dist",
+    "cf:build-deploy": "npm run build && npm run cf:deploy"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/react": "^3.6.2",
+    "astro": "^5.14.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@astrojs/cloudflare": "^12.6.12",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "wrangler": "^4.59.3"
+  }
+}
