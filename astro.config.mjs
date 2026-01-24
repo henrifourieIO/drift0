@@ -6,10 +6,15 @@ import cloudflare from '@astrojs/cloudflare';
 export default defineConfig({
   integrations: [react()],
   adapter: cloudflare({
-    mode: 'directory',
+    mode: 'advanced',
   }),
   server: {
     port: 8080,
   },
   output: 'server',
+  vite: {
+    ssr: {
+      external: ['node:buffer', 'node:path', 'node:fs', 'node:os', 'node:crypto', 'node:async_hooks'],
+    },
+  },
 });

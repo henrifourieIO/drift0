@@ -8,8 +8,8 @@
     "build": "astro check && astro build",
     "preview": "astro preview --port 8080",
     "astro": "astro",
-    "cf:dev": "wrangler pages dev ./dist --compatibility-date=2024-01-01 --compatibility-flag=nodejs_compat",
-    "cf:deploy": "wrangler pages deploy ./dist",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy",
     "cf:build-deploy": "npm run build && npm run cf:deploy"
   },
   "dependencies": {

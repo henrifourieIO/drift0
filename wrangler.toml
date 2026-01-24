@@ -5,13 +5,10 @@ compatibility_date = "2024-09-23"
 # Enable Node.js compatibility for the worker
 compatibility_flags = ["nodejs_compat"]
 
-# Custom build configuration
-[build]
-command = "npm run build"
-
-# Site configuration
-[site]
-bucket = "./dist"
+# Assets configuration for serving static files
+[assets]
+directory = "./dist/_astro"
+binding = "ASSETS"
 
 # Environment variables (optional - add as needed)
 # [vars]
