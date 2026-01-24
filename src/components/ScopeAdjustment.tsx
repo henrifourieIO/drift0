@@ -277,17 +277,15 @@ export function ScopeAdjustment({
 		const milX = offsetXInches * milPerInchAt100 * distanceFactor;
 		const milY = offsetYInches * milPerInchAt100 * distanceFactor;
 
-		let clicksX, clicksY, clickUnit;
+		let clicksX, clicksY;
 		if (clickValue.includes("moa")) {
 			const clickMoa = parseFloat(clickValue);
 			clicksX = Math.round(moaX / clickMoa);
 			clicksY = Math.round(moaY / clickMoa);
-			clickUnit = clickValue.replace(/[0-9.]/g, "").toUpperCase();
 		} else {
 			const clickMil = parseFloat(clickValue);
 			clicksX = Math.round(milX / clickMil);
 			clicksY = Math.round(milY / clickMil);
-			clickUnit = "MIL";
 		}
 
 		const horizDir = offsetXInches > 0 ? "Left" : "Right";

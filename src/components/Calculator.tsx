@@ -164,10 +164,46 @@ function loadSavedValues() {
 	try {
 		const saved = localStorage.getItem(STORAGE_KEY);
 		if (saved) {
-			return JSON.parse(saved);
+			const parsed = JSON.parse(saved);
+			
+			// Validate parsed data structure
+			if (typeof parsed !== 'object' || parsed === null) {
+				return null;
+			}
+			
+			// Validate all numeric fields are actually numbers
+			const numericFields = [
+				'muzzleVelocity', 'bulletWeight', 'ballisticCoefficient',
+				'zeroRange', 'sightHeight', 'targetDistance', 'shootingDistance',
+				'windSpeed', 'windAngle', 'temperature', 'altitude'
+			];
+			
+			for (const field of numericFields) {
+				if (field in parsed && (typeof parsed[field] !== 'number' || !isFinite(parsed[field]))) {
+					delete parsed[field]; // Remove invalid field
+				}
+			}
+			
+			// Validate string fields
+			if (parsed.currentUnit && !['moa', 'mil'].includes(parsed.currentUnit)) {
+				delete parsed.currentUnit;
+			}
+			
+			if (parsed.displayMode && !['rings', 'grid'].includes(parsed.displayMode)) {
+				delete parsed.displayMode;
+			}
+			
+			if (parsed.targetType && typeof parsed.targetType === 'string') {
+				const validTargets = ['ipsc', 'nra-b8', 'moa-grid', 'steel-12', 'steel-8', 'custom'];
+				if (!validTargets.includes(parsed.targetType)) {
+					delete parsed.targetType;
+				}
+			}
+			
+			return parsed;
 		}
 	} catch {
-		// Ignore parsing errors
+		// Ignore parsing errors and corrupted data
 	}
 	return null;
 }
@@ -474,8 +510,6 @@ export function Calculator({
 	const energyLabel = isMetric ? "J" : "ft-lb";
 	const dropLabel = isMetric ? "mm" : '"';
 
-	const displayDist = (d: number) =>
-		isMetric ? d : Math.round(d * conv.mToYds);
 	const displayVel = (v: number) =>
 		isMetric ? v : Math.round(v * conv.msToFps);
 	const displayEnergy = (e: number) =>

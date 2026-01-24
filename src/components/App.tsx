@@ -14,10 +14,27 @@ function loadAppPreferences() {
 	try {
 		const saved = localStorage.getItem(APP_STORAGE_KEY);
 		if (saved) {
-			return JSON.parse(saved);
+			const parsed = JSON.parse(saved);
+			
+			// Validate parsed data structure
+			if (typeof parsed !== 'object' || parsed === null) {
+				return null;
+			}
+			
+			// Validate currentView
+			if (parsed.currentView && !['calculator', 'adjustment'].includes(parsed.currentView)) {
+				parsed.currentView = 'calculator';
+			}
+			
+			// Validate unitSystem
+			if (parsed.unitSystem && !['imperial', 'metric'].includes(parsed.unitSystem)) {
+				parsed.unitSystem = 'imperial';
+			}
+			
+			return parsed;
 		}
 	} catch {
-		// Ignore parsing errors
+		// Ignore parsing errors and corrupted data
 	}
 	return null;
 }
